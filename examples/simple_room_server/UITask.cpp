@@ -34,7 +34,11 @@ void UITask::begin(NodePrefs* node_prefs, const char* build_date, const char* fi
 
   // strip off dash and commit hash by changing dash to null terminator
   // e.g: v1.2.3-abcdef -> v1.2.3
+#ifdef THINKNODE_M8
+  char *version = strdup(FIRMWARE_APP_VERSION);
+#else
   char *version = strdup(firmware_version);
+#endif
   char *dash = strchr(version, '-');
   if(dash){
     *dash = 0;

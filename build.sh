@@ -142,6 +142,13 @@ build_firmware() {
   # e.g: v1.0.0-abcdef
   FIRMWARE_VERSION_STRING="${FIRMWARE_VERSION}-${COMMIT_HASH}"
 
+  case "$1" in
+    ThinkNode_M8_*)
+      FIRMWARE_VERSION_STRING="${FIRMWARE_VERSION%_elecrow}-${COMMIT_HASH}_elecrow"
+      export PLATFORMIO_BUILD_FLAGS="${PLATFORMIO_BUILD_FLAGS} -DFIRMWARE_APP_VERSION='\"${FIRMWARE_VERSION%_elecrow}_elecrow\"'"
+      ;;
+  esac
+
   # craft filename
   # e.g: RAK_4631_Repeater-v1.0.0-SHA
   FIRMWARE_FILENAME="$1-${FIRMWARE_VERSION_STRING}"

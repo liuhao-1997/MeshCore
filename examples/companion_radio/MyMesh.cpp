@@ -1068,7 +1068,11 @@ void MyMesh::handleCmdFrame(size_t len) {
     i += 12;
     StrHelper::strzcpy((char *)&out_frame[i], board.getManufacturerName(), 40);
     i += 40;
+#ifdef THINKNODE_M8
+    StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_APP_VERSION, 20);
+#else
     StrHelper::strzcpy((char *)&out_frame[i], FIRMWARE_VERSION, 20);
+#endif
     i += 20;
     out_frame[i++] = _prefs.isRepeatEn() ? 1 : 0;   // v9+
     out_frame[i++] = _prefs.path_hash_mode;  // v10+

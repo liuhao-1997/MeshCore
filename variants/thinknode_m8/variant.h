@@ -19,7 +19,8 @@
 ////////////////////////////////////////////////////////////////////////////////
 // Power
 
-#define PIN_PWR_EN              (13) // I2C
+#define PIN_PWR_EN              (13) // Flash + SC7A20 rail, HIGH = on; RTC remains powered
+#define PIN_CHARGE_STATUS       (37) // IP2301N CHGLED, input only; not LoRa power
 
 #define BATTERY_PIN             (4)
 #define ADC_MULTIPLIER          (1.75F)
@@ -85,10 +86,10 @@
 // Lora
 
 #define USE_SX1262
-#define LORA_CS                 (24)
-#define SX126X_DIO1             (20)
-#define SX126X_BUSY             (17)
-#define SX126X_RESET            (25)
+#define LORA_CS                 (21)
+#define SX126X_DIO1             (25)
+#define SX126X_BUSY             (32)
+#define SX126X_RESET            (24)
 #define SX126X_ANT_SW           (23)
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
@@ -135,7 +136,9 @@ extern const int SCK;
 #define PIN_GPS_RX              (36)
 #define PIN_GPS_TX              (34)
 #define PIN_GPS_EN              (16)
-#define PIN_GPS_RESET           (-1)
+#define PIN_GPS_RESET           (17) // Q16 inverts this signal to GPS RESETB
+#define PIN_GPS_RESET_ACTIVE    HIGH
 #define PIN_GPS_PPS             (14)
-#define PIN_GPS_STANDBY         (15) // Low = sleep
+#define PIN_GPS_SLEEP_INT       (39) // AG3352 GPIO11 / idle_int
+// GPIO15 reaches the 1.8V regulator EN only through R10 (NC as drawn).
 #define GPS_BAUD_RATE           115200

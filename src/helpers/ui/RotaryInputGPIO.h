@@ -11,7 +11,18 @@ class RotaryInputGPIO: public RotaryInput {
   bool _pull_a;
   int8_t _pin_b;
   bool _pull_b;
-  bool b_prec;
+  bool b_prec = false;
+#ifdef THINKNODE_M8
+  static RotaryInputGPIO* _instance;
+  static void onChange();
+  void sample();
+  uint8_t _state = 0;
+  int8_t _quarters = 0;
+  bool _synced = false;
+  bool _begun = false;
+  bool _interrupts = false;
+  volatile int8_t _pending = 0;
+#endif
 public:
   RotaryInputGPIO(int8_t pin_a, int8_t pin_b, bool pull_a=false, bool pull_b=false): _pin_a(pin_a), _pin_b(pin_b), _pull_a(pull_a), _pull_b(pull_b) {}
 

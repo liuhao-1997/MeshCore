@@ -25,7 +25,9 @@
   #define UI_RECENT_LIST_SIZE 4
 #endif
 
-#if UI_HAS_JOYSTICK || UI_HAS_ROTARY_INPUT
+#if defined(THINKNODE_M8)
+  #define PRESS_LABEL "double click"
+#elif UI_HAS_JOYSTICK || UI_HAS_ROTARY_INPUT
   #define PRESS_LABEL "press Enter"
 #else
   #define PRESS_LABEL "long press"
@@ -36,13 +38,21 @@
 class SplashScreen : public UIScreen {
   UITask* _task;
   unsigned long dismiss_after;
+#ifdef THINKNODE_M8
+  char _version_info[20];
+#else
   char _version_info[12];
+#endif
 
 public:
   SplashScreen(UITask* task) : _task(task) {
     // strip off dash and commit hash by changing dash to null terminator
     // e.g: v1.2.3-abcdef -> v1.2.3
+#ifdef THINKNODE_M8
+    const char *ver = FIRMWARE_APP_VERSION;
+#else
     const char *ver = FIRMWARE_VERSION;
+#endif
     const char *dash = strchr(ver, '-');
 
     int len = dash ? dash - ver : strlen(ver);
@@ -142,6 +152,9 @@ class HomeScreen : public UIScreen {
     int iconHeight = 10;
     int iconX = display.width() - iconWidth - 5; // Position the icon near the top-right corner
     int iconY = 0;
+#ifdef THINKNODE_M8
+    iconY = 4; // Lower the outline to the name/percentage glyphs.
+#endif
     display.setColor(UIColor::title_txt);
 
     // battery outline
@@ -150,10 +163,34 @@ class HomeScreen : public UIScreen {
     // battery "cap"
     display.fillRect(iconX + iconWidth, iconY + (iconHeight / 4), 3, iconHeight / 2);
 
+    int mutedIconX = iconX - 9;
+    int mutedIconY = iconY + 1;
+#ifdef THINKNODE_M8
+    mutedIconY = 3; // Keep the existing text-row alignment.
+    if (batteryMilliVolts == 0) {
+      display.drawTextCentered(iconX + iconWidth / 2, iconY - 1, "?");
+    } else {
+      char percentageText[5];
+      snprintf(percentageText, sizeof(percentageText), "%d%%", batteryPercentage);
+      display.drawTextRightAlign(iconX - 3, 2, percentageText);
+      mutedIconX -= display.getTextWidth("100%") + 3;
+      int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
+      display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+      if (board.isExternalPowered()) {
+        static const uint8_t lightning[8] = {0x0C, 0x18, 0x30, 0x7E, 0x0C, 0x18, 0x30, 0x20};
+        display.setColor(UIColor::title_bkg);
+        display.fillRect(iconX + 8, iconY + 1, 8, 8);
+        display.setColor(UIColor::title_txt);
+        display.drawXbm(iconX + 8, iconY + 1, lightning, 8, 8);
+      }
+    }
+#else
     // fill the battery based on the percentage
     int fillWidth = (batteryPercentage * (iconWidth - 4)) / 100;
     display.fillRect(iconX + 2, iconY + 2, fillWidth, iconHeight - 4);
+#endif
 
+#ifndef THINKNODE_M8
     // while charging, show a bolt (or a plug once full) just left of the battery,
     // keeping the fill bar itself clean and uninterrupted
     bool charging = board.isExternalPowered();
@@ -165,13 +202,18 @@ class HomeScreen : public UIScreen {
       display.setColor(UIColor::title_txt);
       display.drawXbm(iconX - 9, iconY + 1, symbol, 8, 8);
     }
+#endif
 
     // show muted icon if buzzer is muted (shifted further left when the charging
     // icon already occupies the slot immediately left of the battery)
 #ifdef PIN_BUZZER
     if (_task->isBuzzerQuiet()) {
       display.setColor(UIColor::warning_txt);
+#ifndef THINKNODE_M8
       display.drawXbm(iconX - (charging ? 18 : 9), iconY + 1, muted_icon, 8, 8);
+#else
+      display.drawXbm(mutedIconX, mutedIconY, muted_icon, 8, 8);
+#endif
     }
 #endif
   }
@@ -255,13 +297,26 @@ public:
     // node name
     display.setTextSize(1);
     display.setColor(UIColor::title_txt);
+    uint16_t batteryMilliVolts = _task->getBattMilliVolts();
+#ifdef THINKNODE_M8
+    // Display calibration only; preserve zero as the existing unknown-battery sentinel.
+    if (batteryMilliVolts != 0) batteryMilliVolts += 120;
+#endif
     char filtered_name[sizeof(_node_prefs->node_name)];
     display.translateUTF8ToBlocks(filtered_name, _node_prefs->node_name, sizeof(filtered_name));
+#ifdef THINKNODE_M8
+    int statusWidth = 24 + 5 + 10 + 2;
+    if (batteryMilliVolts != 0) statusWidth += display.getTextWidth("100%") + 3;
+    const int contentOffsetY = 4;
+    display.drawTextEllipsized(0, 2, display.width() - statusWidth, filtered_name);
+#else
+    const int contentOffsetY = 0;
     display.setCursor(0, 2);
     display.print(filtered_name);
+#endif
 
     // battery voltage
-    renderBatteryIndicator(display, _task->getBattMilliVolts());
+    renderBatteryIndicator(display, batteryMilliVolts);
 
     // curr page indicator
     if (UIColor::title_bkg == UIColor::window_bkg) {
@@ -269,7 +324,7 @@ public:
     } else {
       display.setColor(UIColor::title_bkg);
     }
-    int y = 14;
+    int y = 14 + contentOffsetY;
     int x = display.width() / 2 - 5 * (HomePage::Count-1);
     for (uint8_t i = 0; i < HomePage::Count; i++, x += 10) {
       if (i == _page) {
@@ -290,9 +345,16 @@ public:
       // larger unread message ui for non wifi variants
       display.setTextSize(2);
       sprintf(tmp, "MSG: %d", _task->getMsgCount());
-      display.drawTextCentered(display.width() / 2, 22, tmp);
+      display.drawTextCentered(display.width() / 2, 22 + contentOffsetY, tmp);
       #endif
       #ifdef UI_SHOW_CLOCK
+      #ifdef THINKNODE_M8
+      if (batteryMilliVolts != 0) {
+        display.setTextSize(1);
+        snprintf(tmp, sizeof(tmp), "%.2fV", batteryMilliVolts / 1000.0f);
+        display.drawTextCentered(display.width() / 2, 40, tmp);
+      }
+      #endif
       display.setTextSize(3);
       uint32_t now = _rtc->getCurrentTime();
       now += (int32_t)_node_prefs->tz_offset * 3600;
@@ -331,7 +393,7 @@ public:
     } else if (_page == HomePage::RECENT) {
       the_mesh.getRecentlyHeard(recent, UI_RECENT_LIST_SIZE);
       display.setColor(UIColor::primary_txt);
-      int y = 20;
+      int y = 20 + contentOffsetY;
       for (int i = 0; i < UI_RECENT_LIST_SIZE; i++, y += 11) {
         auto a = &recent[i];
         if (a->name[0] == 0) continue;  // empty slot
@@ -357,39 +419,39 @@ public:
       display.setColor(UIColor::primary_txt);
       display.setTextSize(1);
       // freq / sf
-      display.setCursor(0, 20);
+      display.setCursor(0, 20 + contentOffsetY);
       sprintf(tmp, "FQ: %06.3f   SF: %d", _node_prefs->freq, _node_prefs->sf);
       display.print(tmp);
 
-      display.setCursor(0, 31);
+      display.setCursor(0, 31 + contentOffsetY);
       sprintf(tmp, "BW: %03.2f     CR: %d", _node_prefs->bw, _node_prefs->cr);
       display.print(tmp);
 
       // tx power,  noise floor
-      display.setCursor(0, 42);
+      display.setCursor(0, 42 + contentOffsetY);
       sprintf(tmp, "TX: %ddBm", _node_prefs->tx_power_dbm);
       display.print(tmp);
-      display.setCursor(0, 53);
+      display.setCursor(0, 53 + contentOffsetY);
       sprintf(tmp, "Noise floor: %d", radio_driver.getNoiseFloor());
       display.print(tmp);
     } else if (_page == HomePage::BLUETOOTH) {
       display.setColor(UIColor::corp_blue);
-      display.drawXbm((display.width() - 32) / 2, 18,
+      display.drawXbm((display.width() - 32) / 2, 18 + contentOffsetY,
           _task->isBluetoothEnabled() ? bluetooth_on : bluetooth_off,
           32, 32);
       display.setColor(UIColor::secondary_txt);
       display.setTextSize(1);
-      display.drawTextCentered(display.width() / 2, 64 - 11, "toggle: " PRESS_LABEL);
+      display.drawTextCentered(display.width() / 2, 64 - 11 + contentOffsetY, "toggle: " PRESS_LABEL);
     } else if (_page == HomePage::ADVERT) {
       display.setColor(UIColor::corp_blue);
-      display.drawXbm((display.width() - 32) / 2, 18, advert_icon, 32, 32);
+      display.drawXbm((display.width() - 32) / 2, 18 + contentOffsetY, advert_icon, 32, 32);
       display.setColor(UIColor::secondary_txt);
-      display.drawTextCentered(display.width() / 2, 64 - 11, "advert: " PRESS_LABEL);
+      display.drawTextCentered(display.width() / 2, 64 - 11 + contentOffsetY, "advert: " PRESS_LABEL);
 #if ENV_INCLUDE_GPS == 1
     } else if (_page == HomePage::GPS) {
       LocationProvider* nmea = sensors.getLocationProvider();
       char buf[50];
-      int y = 18;
+      int y = 18 + contentOffsetY;
       bool gps_state = _task->getGPSState();
 #ifdef PIN_GPS_SWITCH
       bool hw_gps_state = digitalRead(PIN_GPS_SWITCH);
@@ -538,7 +600,11 @@ public:
         return 1000; // more frequent updates just after req
       } else if (count < DISCOVERED_NODES_TABLE_SIZE -1) { // show only 5 sec after last disc
         y = 10 + 11 * DISCOVERED_NODES_TABLE_SIZE;
+#ifdef THINKNODE_M8
+        display.drawTextCentered(display.width() / 2, y, "discover: press Enter");
+#else
         display.drawTextCentered(display.width() / 2, y, "discover: " PRESS_LABEL);
+#endif
       }
 #endif
 #ifndef UI_NO_HIBERNATE
@@ -547,11 +613,11 @@ public:
       display.setTextSize(1);
       if (_shutdown_init) {
         display.setColor(UIColor::warning_txt);
-        display.drawTextCentered(display.width() / 2, 34, "hibernating...");
+        display.drawTextCentered(display.width() / 2, 34 + contentOffsetY, "hibernating...");
       } else {
         display.setColor(UIColor::secondary_txt);
-        display.drawXbm((display.width() - 32) / 2, 18, power_icon, 32, 32);
-        display.drawTextCentered(display.width() / 2, 64 - 11, "hibernate:" PRESS_LABEL);
+        display.drawXbm((display.width() - 32) / 2, 18 + contentOffsetY, power_icon, 32, 32);
+        display.drawTextCentered(display.width() / 2, 64 - 11 + contentOffsetY, "hibernate:" PRESS_LABEL);
       }
 #endif
     }
@@ -559,6 +625,11 @@ public:
   }
 
   bool handleInput(char c) override {
+#ifdef THINKNODE_M8
+    const char action_key = KEY_SELECT; // Existing rotary double-click event.
+#else
+    const char action_key = KEY_ENTER;
+#endif
     if (c == KEY_LEFT || c == KEY_PREV) {
       _page = (_page + HomePage::Count - 1) % HomePage::Count;
       return true;
@@ -575,7 +646,7 @@ public:
 #endif
       return true;
     }
-    if (c == KEY_ENTER && _page == HomePage::BLUETOOTH) {
+    if (c == action_key && _page == HomePage::BLUETOOTH) {
       if (_task->isBluetoothEnabled()) {  // toggle Bluetooth on/off
         _task->disableBluetooth();
       } else {
@@ -583,7 +654,7 @@ public:
       }
       return true;
     }
-    if (c == KEY_ENTER && _page == HomePage::ADVERT) {
+    if (c == action_key && _page == HomePage::ADVERT) {
       _task->notify(UIEventType::ack);
       if (the_mesh.advert()) {
         _task->showAlert("Advert sent!", 1000);
@@ -593,13 +664,13 @@ public:
       return true;
     }
 #if ENV_INCLUDE_GPS == 1
-    if (c == KEY_ENTER && _page == HomePage::GPS) {
+    if (c == action_key && _page == HomePage::GPS) {
       _task->toggleGPS();
       return true;
     }
 #endif
 #if UI_SENSORS_PAGE == 1
-    if (c == KEY_ENTER && _page == HomePage::SENSORS) {
+    if (c == action_key && _page == HomePage::SENSORS) {
       _task->toggleGPS();
       next_sensors_refresh=0;
       return true;
@@ -618,7 +689,7 @@ public:
     }
 #endif
 #ifndef UI_NO_HIBERNATE
-    if (c == KEY_ENTER && _page == HomePage::SHUTDOWN) {
+    if (c == action_key && _page == HomePage::SHUTDOWN) {
       _shutdown_init = true;  // need to wait for button to be released
       return true;
     }
@@ -732,6 +803,9 @@ void UITask::begin(DisplayDriver* display, SensorManager* sensors, NodePrefs* no
 #endif
 #if defined(PIN_USER_BTN_ANA)
   analog_btn.begin();
+#endif
+#if defined(THINKNODE_M8) && defined(UI_HAS_ROTARY_INPUT)
+  rotary_input.begin();
 #endif
 
   _node_prefs = node_prefs;

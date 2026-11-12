@@ -25,8 +25,10 @@ void initVariant() {
   pinMode(PIN_BUTTON2, INPUT_PULLUP);
 
   // shutdown gps
-  pinMode(PIN_GPS_STANDBY, OUTPUT);
-  digitalWrite(PIN_GPS_STANDBY, HIGH);
+  digitalWrite(PIN_GPS_SLEEP_INT, HIGH);
+  pinMode(PIN_GPS_SLEEP_INT, OUTPUT);
+  digitalWrite(PIN_GPS_RESET, LOW); // Release RESETB without Q16 base current.
+  pinMode(PIN_GPS_RESET, OUTPUT);
   pinMode(PIN_GPS_EN, OUTPUT);
   digitalWrite(PIN_GPS_EN, LOW); // disable at startup
 

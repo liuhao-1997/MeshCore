@@ -32,19 +32,5 @@ public:
     return "Elecrow ThinkNode-M8";
   }
 
-  void shutdownPeripherals() override {
-    // power off board
-    NRF52Board::shutdownPeripherals();
-
-    // make sure every gate is closed
-    digitalWrite(DISP_EN, LOW);
-    digitalWrite(PIN_PWR_EN, LOW);
-    digitalWrite(PIN_GPS_EN, LOW);
-    digitalWrite(SX126X_ANT_SW, LOW);
-    digitalWrite(ADC_EN, LOW);
-
-    #ifdef PIN_BUTTON1 // Use BTN to go out of sleep
-    nrf_gpio_cfg_sense_input(PIN_BUTTON1, NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
-    #endif
-  }
+  void shutdownPeripherals() override;
 };
